@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Socket.IO Chat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .chat-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 600px;
+            height: 80vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .user-setup {
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .user-setup h2 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .user-setup input {
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            width: 100%;
+            max-width: 300px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        .user-setup input:focus {
+            outline: none;
+            border-color: #4facfe;
+        }
+
+        .user-setup button {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .user-setup button:hover {
+            transform: translateY(-2px);
+        }
+
+        .chat-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            display: none;
+        }
+
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 12px 16px;
+            border-radius: 15px;
+            max-width: 80%;
+            word-wrap: break-word;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        .message.own {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .message.other {
+            background: white;
+            color: #333;
+            border: 1px solid #e0e0e0;
+        }
+
+        .message .username {
+            font-weight: bold;
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+        }
+
+        .message .text {
+            font-size: 1rem;
+            line-height: 1.4;
+        }
+
+        .message .timestamp {
+            font-size: 0.8rem;
+            opacity: 0.7;
+            margin-top: 5px;
+        }
+
+        .system-message {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            margin: 10px 0;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 10px;
+        }
+
+        .input-area {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            gap: 10px;
+        }
+
+        .input-area input {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 25px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .input-area input:focus {
+            border-color: #4facfe;
+        }
+
+        .input-area button {
+            padding: 15px 25px;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: transform 0.2s;
+        }
+
+        .input-area button:hover {
+            transform: scale(1.05);
+        }
+
+        .online-users {
+            background: rgba(0, 0, 0, 0.05);
+            padding: 10px 20px;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .status {
+            padding: 10px 20px;
+            background: #e8f5e8;
+            color: #2d5a2d;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+
+        .status.disconnected {
+            background: #ffe8e8;
+            color: #5a2d2d;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            💬 Real-time Chat
+        </div>
+        
+        <div class="user-setup" id="userSetup">
+            <h2>Join the Chat</h2>
+            <input type="text" id="usernameInput" placeholder="Enter your username" maxlength="20">
+            <button onclick="joinChat()">Join Chat</button>
+        </div>
+
+        <div class="chat-main" id="chatMain">
+            <div class="status" id="status">Connected to chat</div>
+            <div class="online-users" id="onlineUsers">Online: 0 users</div>
+            <div class="messages" id="messages"></div>
+            <div class="input-area">
+                <input type="text" id="messageInput" placeholder="Type a message..." maxlength="500">
+                <button onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <script>
+        class ChatClient {
+            constructor() {
+                this.socket = null;
+                this.username = null;
+                this.connected = false;
+                this.users = new Set();
+                this.messages = [];
+                
+                this.setupEventListeners();
+            }
+
+            setupEventListeners() {
+                // Enter key to join chat
+                document.getElementById('usernameInput').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        this.joinChat();
+                    }
+                });
+
+                // Enter key to send message
+                document.getElementById('messageInput').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        this.sendMessage();
+                    }
+                });
+            }
+
+            joinChat() {
+                const usernameInput = document.getElementById('usernameInput');
+                const username = usernameInput.value.trim();
+                
+                if (!username) {
+                    alert('Please enter a username');
+                    return;
+                }
+
+                this.username = username;
+                this.initializeSocket();
+                
+                // Show chat interface
+                document.getElementById('userSetup').style.display = 'none';
+                document.getElementById('chatMain').style.display = 'flex';
+            }
+
+            initializeSocket() {
+                // Since we can't run a real Socket.IO server in this environment,
+                // we'll simulate the Socket.IO behavior with a mock implementation
+                this.socket = new MockSocket();
+                
+                this.socket.on('connect', () => {
+                    this.connected = true;
+                    this.updateStatus('Connected to chat', false);
+                    this.socket.emit('user-join', this.username);
+                });
+
+                this.socket.on('disconnect', () => {
+                    this.connected = false;
+                    this.updateStatus('Disconnected from chat', true);
+                });
+
+                this.socket.on('user-joined', (data) => {
+                    this.users.add(data.username);
+                    this.updateOnlineUsers();
+                    this.addSystemMessage(`${data.username} joined the chat`);
+                });
+
+                this.socket.on('user-left', (data) => {
+                    this.users.delete(data.username);
+                    this.updateOnlineUsers();
+                    this.addSystemMessage(`${data.username} left the chat`);
+                });
+
+                this.socket.on('message', (data) => {
+                    this.addMessage(data);
+                });
+
+                this.socket.on('users-list', (usersList) => {
+                    this.users = new Set(usersList);
+                    this.updateOnlineUsers();
+                });
+
+                // Connect to the mock server
+                this.socket.connect();
+            }
+
+            sendMessage() {
+                const messageInput = document.getElementById('messageInput');
+                const message = messageInput.value.trim();
+                
+                if (!message || !this.connected) {
+                    return;
+                }
+
+                const messageData = {
+                    username: this.username,
+                    message: message,
+                    timestamp: new Date().toISOString()
+                };
+
+                this.socket.emit('message', messageData);
+                messageInput.value = '';
+            }
+
+            addMessage(data) {
+                const messagesDiv = document.getElementById('messages');
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${data.username === this.username ? 'own' : 'other'}`;
+                
+                const time = new Date(data.timestamp).toLocaleTimeString();
+                
+                messageDiv.innerHTML = `
+                    <div class="username">${data.username}</div>
+                    <div class="text">${this.escapeHtml(data.message)}</div>
+                    <div class="timestamp">${time}</div>
+                `;
+                
+                messagesDiv.appendChild(messageDiv);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                
+                this.messages.push(data);
+            }
+
+            addSystemMessage(message) {
+                const messagesDiv = document.getElementById('messages');
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'system-message';
+                messageDiv.textContent = message;
+                
+                messagesDiv.appendChild(messageDiv);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            }
+
+            updateStatus(message, isError) {
+                const statusDiv = document.getElementById('status');
+                statusDiv.textContent = message;
+                statusDiv.className = `status ${isError ? 'disconnected' : ''}`;
+            }
+
+            updateOnlineUsers() {
+                const onlineUsersDiv = document.getElementById('onlineUsers');
+                onlineUsersDiv.textContent = `Online: ${this.users.size} user${this.users.size !== 1 ? 's' : ''} (${Array.from(this.users).join(', ')})`;
+            }
+
+            escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+        }
+
+        // Mock Socket.IO implementation for demonstration
+        class MockSocket {
+            constructor() {
+                this.events = {};
+                this.connected = false;
+                this.users = new Map();
+                this.id = Math.random().toString(36).substr(2, 9);
+            }
+
+            on(event, callback) {
+                if (!this.events[event]) {
+                    this.events[event] = [];
+                }
+                this.events[event].push(callback);
+            }
+
+            emit(event, data) {
+                if (event === 'user-join') {
+                    this.users.set(this.id, data);
+                    this.broadcast('user-joined', { username: data });
+                    this.trigger('users-list', Array.from(this.users.values()));
+                } else if (event === 'message') {
+                    this.broadcast('message', data);
+                }
+            }
+
+            connect() {
+                setTimeout(() => {
+                    this.connected = true;
+                    this.trigger('connect');
+                    
+                    // Simulate some existing users
+                    const existingUsers = ['Alice', 'Bob', 'Charlie'];
+                    existingUsers.forEach(user => {
+                        this.users.set(Math.random().toString(36).substr(2, 9), user);
+                    });
+                }, 500);
+            }
+
+            trigger(event, data) {
+                if (this.events[event]) {
+                    this.events[event].forEach(callback => callback(data));
+                }
+            }
+
+            broadcast(event, data) {
+                // Simulate broadcasting to all connected clients
+                setTimeout(() => {
+                    this.trigger(event, data);
+                }, 100);
+            }
+        }
+
+        // Initialize the chat client
+        const chatClient = new ChatClient();
+
+        // Global functions for button clicks
+        function joinChat() {
+            chatClient.joinChat();
+        }
+
+        function sendMessage() {
+            chatClient.sendMessage();
+        }
+
+        // Auto-focus on username input
+        document.getElementById('usernameInput').focus();
+    </script>
+</body>
+</html>
