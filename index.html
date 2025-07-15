@@ -42,6 +42,7 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
     const playerId = crypto.randomUUID();
+    remove(ref(db, 'players/' + playerId)); // Cleanup any leftover clone
     const playersRef = ref(db, 'players');
 
     const otherPlayers = {};
@@ -57,7 +58,13 @@
 
     function listenForPlayers(createCharacterClone) {
       onValue(playersRef, snapshot => {
-        const data = snapshot.val() || {};
+  const data = snapshot.val() || {};
+  const now = Date.now();
+  for (const id in data) {
+    if (now - data[id].t > 10000) {
+      remove(ref(db, 'players/' + id)); // Remove inactive player after 10 sec
+    }
+  }
         for (const id in data) {
           if (id === playerId) continue;
           const info = data[id];
@@ -104,8 +111,12 @@
 
 
     window.addEventListener('beforeunload', () => {
-      remove(ref(db, 'players/' + playerId));
-    });
+  navigator.sendBeacon(
+    firebaseConfig.databaseURL + '/players/' + playerId + '.json',
+    JSON.stringify(null)
+  );
+});
+
 
 import * as CANNON from 'https://cdn.skypack.dev/cannon-es';
 
@@ -389,4 +400,3 @@ import * as CANNON from 'https://cdn.skypack.dev/cannon-es';
   </script>
 </body>
 </html>
-
