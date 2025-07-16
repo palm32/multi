@@ -110,12 +110,11 @@
     }, 5000);
 
 
-    window.addEventListener('beforeunload', () => {
-  navigator.sendBeacon(
-    firebaseConfig.databaseURL + '/players/' + playerId + '.json',
-    JSON.stringify(null)
-  );
-});
+    window.onunload = () => {
+  const xhr = new XMLHttpRequest();
+  xhr.open("DELETE", `${firebaseConfig.databaseURL}/players/${playerId}.json`, false); // false = synchronous
+  xhr.send();
+};
 
 
 import * as CANNON from 'https://cdn.skypack.dev/cannon-es';
@@ -164,7 +163,6 @@ import * as CANNON from 'https://cdn.skypack.dev/cannon-es';
 
     const character = new THREE.Group();
     const bodyMat = new THREE.MeshLambertMaterial({ color: 0x5B913B });
-    const headMat = new THREE.MeshLambertMaterial({ color: 0xFFDBB3 });
     const limbMat = new THREE.MeshLambertMaterial({ color: 0xFFDBB3 });
     const legMat = new THREE.MeshLambertMaterial({ color: 0x3E3F5B });
 
